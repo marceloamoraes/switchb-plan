@@ -1,0 +1,13 @@
+[
+  {"name": "component", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Product", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Vendor", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Ampacity", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Voltage", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Enclosure type", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Options", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Circuit Breaker Details", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Total Price", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "source_uri", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "processed_at", "type": "TIMESTAMP", "mode": "REQUIRED"}
+]

@@ -1,0 +1,12 @@
+{
+  "rule": [
+    {
+      "action": {"type": "SetStorageClass", "storageClass": "COLDLINE"},
+      "condition": {"matchesPrefix": ["archive/"], "age": 0}
+    },
+    {
+      "action": {"type": "SetStorageClass", "storageClass": "ARCHIVE"},
+      "condition": {"matchesPrefix": ["archive/"], "age": 90}
+    }
+  ]
+}
