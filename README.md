@@ -9,10 +9,15 @@ Never run GCP's managed AI/OCR APIs on all 130k raw files. Filter locally with c
 serverless compute first, and only spend generative-AI tokens on the documents that
 actually mention switchgear.
 
+Ingestion and processing are also deliberately decoupled: uploading a file to the
+bucket does **not** trigger anything by itself. Processing only starts when you run
+`scripts/trigger_phase1.py`, so a batch (and its cost) always starts on purpose.
+
 ```mermaid
 flowchart TD
     A["130,000 files"] --> B["Cloud Storage (GCS bucket)"]
-    B -- "GCS notification -> Pub/Sub" --> C["Phase 1: Local Pre-Filter (Cloud Run)"]
+    T["Manual trigger\n(scripts/trigger_phase1.py)"] -- "Pub/Sub" --> C["Phase 1: Local Pre-Filter (Cloud Run)"]
+    B -.->|"read by"| C
     C -->|"no keyword match"| D["archive/ prefix\n(Lifecycle -> Coldline/Archive)"]
     C -->|"match"| E["Phase 2: Targeted AI Extraction (Cloud Run)"]
     E --> F["Vertex AI - Gemini (structured output)"]
@@ -21,8 +26,10 @@ flowchart TD
 
 ### Phase 1 — Local pre-filtering (`pipeline/phase1_filter`)
 
-Triggered by a GCS `OBJECT_FINALIZE` notification delivered via Pub/Sub push to a
-Cloud Run service.
+Triggered manually: `scripts/trigger_phase1.py` lists objects already in the bucket
+and publishes one Pub/Sub message per object, which the Phase 1 Cloud Run service
+consumes via push subscription. There is no GCS `OBJECT_FINALIZE` notification —
+uploading a file does not start processing on its own.
 
 - Extracts raw text locally, no cloud AI calls:
   - PDF: PyMuPDF (`fitz`)
@@ -84,6 +91,7 @@ infra/                  gcloud setup script + BigQuery table schema
 pipeline/phase1_filter/ Cloud Run service: parse + regex filter
 pipeline/phase2_extract/Cloud Run service: Gemini structured extraction -> BigQuery
 scripts/local_test.py   run Phase 1 parsing/matching against local files, no GCP needed
+scripts/trigger_phase1.py  manually kick off a processing batch for objects already in the bucket
 ```
 
 ## Local testing (no GCP required)
@@ -103,10 +111,19 @@ real files before deploying anything.
 section by section) that:
 
 1. Creates the GCS bucket and the `archive/`-scoped lifecycle rule.
-2. Creates the two Pub/Sub topics (`phase1-trigger`, `phase2-trigger`) and the GCS
-   notification that feeds `phase1-trigger`.
+2. Creates the two Pub/Sub topics (`phase1-trigger`, `phase2-trigger`). No GCS
+   notification is created — nothing fires automatically on upload.
 3. Creates the BigQuery dataset/table from `bigquery_schema.json`.
 4. Builds and deploys both Cloud Run services, and wires up their push subscriptions.
 
 It is not meant to be run unattended — review the project ID, region, and bucket
 name first.
+
+Once deployed, upload files whenever you want, then start (or re-start) a batch
+on your own schedule:
+
+```bash
+pip install -r pipeline/phase1_filter/requirements.txt
+python scripts/trigger_phase1.py --project "$PROJECT_ID" --bucket "$BUCKET_NAME" --dry-run
+python scripts/trigger_phase1.py --project "$PROJECT_ID" --bucket "$BUCKET_NAME"
+```

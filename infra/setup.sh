@@ -17,10 +17,11 @@ gcloud config set project "$PROJECT_ID"
 gcloud storage buckets create "gs://$BUCKET_NAME" --location="$REGION"
 gcloud storage buckets update "gs://$BUCKET_NAME" --lifecycle-file=lifecycle.json
 
-# --- 2. Pub/Sub topics + GCS notification for Phase 1 ---
+# --- 2. Pub/Sub topics ---
+# No GCS notification here on purpose: processing is triggered manually via
+# scripts/trigger_phase1.py, not automatically when an object is uploaded.
 gcloud pubsub topics create "$PHASE1_TOPIC"
 gcloud pubsub topics create "$PHASE2_TOPIC"
-gsutil notification create -t "$PHASE1_TOPIC" -f json -e OBJECT_FINALIZE "gs://$BUCKET_NAME"
 
 # --- 3. BigQuery dataset + table ---
 bq mk --dataset --location="$REGION" "$PROJECT_ID:$DATASET"
@@ -51,3 +52,6 @@ PHASE2_URL=$(gcloud run services describe phase2-extract --region "$REGION" --fo
 gcloud pubsub subscriptions create phase2-sub \
   --topic "$PHASE2_TOPIC" --push-endpoint="$PHASE2_URL" \
   --push-auth-service-account="run-invoker@$PROJECT_ID.iam.gserviceaccount.com"
+
+# --- 6. Kick off a processing batch (run whenever you're ready, not automatic) ---
+# python ../scripts/trigger_phase1.py --project "$PROJECT_ID" --bucket "$BUCKET_NAME" --topic "$PHASE1_TOPIC"

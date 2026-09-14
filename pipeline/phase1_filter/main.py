@@ -1,9 +1,9 @@
 """Cloud Run service: Phase 1 local pre-filter.
 
-Receives a Pub/Sub push message from the GCS OBJECT_FINALIZE notification
-(`gsutil notification create -f json -t $TRIGGER_TOPIC gs://$BUCKET`), extracts
-text locally, and either archives the object (no keyword match) or hands it to
-Phase 2 (match) by writing the text to GCS and publishing a message.
+Receives a Pub/Sub push message describing one GCS object — published manually via
+`scripts/trigger_phase1.py`, not automatically on upload — extracts text locally,
+and either archives the object (no keyword match) or hands it to Phase 2 (match) by
+writing the text to GCS and publishing a message.
 """
 import base64
 import json
