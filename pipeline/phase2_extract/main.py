@@ -72,7 +72,9 @@ def process_message(payload: dict):
         "source_uri": f"gs://{bucket_name}/{source_object}",
         "processed_at": datetime.datetime.utcnow().isoformat(),
     }
-    errors = bq_client.insert_rows_json(BQ_TABLE, [row])
+    # row_ids keys the insert on source_object so a redelivered Pub/Sub message
+    # (at-least-once delivery) doesn't create a duplicate BigQuery row.
+    errors = bq_client.insert_rows_json(BQ_TABLE, [row], row_ids=[source_object])
     if errors:
         raise RuntimeError(f"BigQuery insert failed: {errors}")
 

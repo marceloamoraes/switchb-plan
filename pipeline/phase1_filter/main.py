@@ -12,6 +12,7 @@ import os
 import tempfile
 
 from flask import Flask, request
+from google.api_core.exceptions import NotFound
 from google.cloud import pubsub_v1, storage
 
 from matcher import is_match
@@ -59,20 +60,27 @@ def handle_pubsub_push():
 def process_object(bucket_name: str, object_name: str):
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(object_name)
+    archive_blob_name = ARCHIVE_PREFIX + object_name
+    text_blob_name = EXTRACTED_PREFIX + object_name + ".txt"
 
     suffix = os.path.splitext(object_name)[1]
     with tempfile.NamedTemporaryFile(suffix=suffix) as tmp:
-        blob.download_to_filename(tmp.name)
+        try:
+            blob.download_to_filename(tmp.name)
+        except NotFound:
+            # Redelivered message for an object already moved by a prior attempt.
+            if bucket.blob(archive_blob_name).exists() or bucket.blob(text_blob_name).exists():
+                logging.info("Already processed, skipping redelivery: %s", object_name)
+                return
+            raise
         text = extract_text(tmp.name)
 
     if not is_match(text):
-        archive_blob_name = ARCHIVE_PREFIX + object_name
         bucket.copy_blob(blob, bucket, archive_blob_name)
         blob.delete()
         logging.info("No match, archived: %s", object_name)
         return
 
-    text_blob_name = EXTRACTED_PREFIX + object_name + ".txt"
     bucket.blob(text_blob_name).upload_from_string(text, content_type="text/plain")
 
     payload = {
